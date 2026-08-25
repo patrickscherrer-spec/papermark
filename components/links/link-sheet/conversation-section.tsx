@@ -1,3 +1,5 @@
-import ConversationSection from "@/ee/features/conversations/components/dashboard/link-option-conversation-section";
+import React from "react";
 
-export default ConversationSection;
+export default function ConversationSection() {
+  return null;
+}
