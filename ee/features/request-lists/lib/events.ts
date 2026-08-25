@@ -1,1 +1,0 @@
-export const REQUEST_LIST_OPEN_EVENT = "request-list-open";
