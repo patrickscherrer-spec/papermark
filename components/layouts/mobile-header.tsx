@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 
-import { isReferralsEnabled } from "@/ee/features/partners/lib/referrals";
+//import { isReferralsEnabled } from "@/ee/features/partners/lib/referrals";
 import {
   ChevronLeftIcon,
   CircleUserRound,

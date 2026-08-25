@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { useState } from "react";
 
-import { isReferralsEnabled } from "@/ee/features/partners/lib/referrals";
+//import { isReferralsEnabled } from "@/ee/features/partners/lib/referrals";
 import {
   ChevronsUpDown,
   CircleUserRound,
