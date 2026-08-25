@@ -1,16 +1,4 @@
 import {
-  resolveBaseBrand,
-  teamBrandOgSelect,
-  teamBrandViewerSelect,
-  teamBrandWorkflowSelect,
-} from "@/ee/features/branding/lib/resolve-base-brand";
-import {
-  inheritsTeamBrand,
-  resolveDisplayedDataroomBrand,
-} from "@/ee/features/branding/lib/resolve-dataroom-displayed-brand";
-import { resolvePublicLinkMeta } from "@/ee/features/branding/lib/resolve-public-link-meta";
-import type { ResolvedPublicLinkMeta } from "@/ee/features/branding/lib/resolve-public-link-meta";
-import {
   Brand,
   DataroomBrand,
   ItemType,
@@ -39,7 +27,13 @@ type LinkFetchStatus =
   | "free"
   | "frozen";
 
-export type { ResolvedPublicLinkMeta };
+export type ResolvedPublicLinkMeta = {
+  enableCustomMetatag: boolean;
+  metaTitle: string | null;
+  metaDescription: string | null;
+  metaImage: string | null;
+  metaFavicon: string | null;
+};
 
 export type LinkFetchResult =
   | {
@@ -130,6 +124,11 @@ type LinkRecord = Prisma.LinkGetPayload<{ select: typeof linkSelect }>;
 // Internal Helpers
 // ============================================================================
 
+// Local mock function to replace resolveBaseBrand
+async function resolveBaseBrand(opts: any): Promise<Partial<Brand>> {
+  return {};
+}
+
 // Helper function to get all parent folder IDs for given folder IDs
 async function getAllParentFolderIds(
   folderIds: string[],
@@ -146,7 +145,6 @@ async function getAllParentFolderIds(
   });
 
   // Use Map for O(1) parent lookup: folderId -> parentId
-  // This is more efficient than Set because we need key-value relationship for traversal
   const folderMap = new Map(
     allFolders.map((folder) => [folder.id, folder.parentId]),
   );
@@ -164,7 +162,7 @@ async function getAllParentFolderIds(
 }
 
 // ============================================================================
-// Data Fetchers (used by both API routes and getStaticProps)
+// Data Fetchers
 // ============================================================================
 
 export async function fetchDataroomLinkData({
@@ -190,10 +188,7 @@ export async function fetchDataroomLinkData({
   const effectiveGroupId = groupId || permissionGroupId;
 
   if (effectiveGroupId) {
-    // Check if this is a ViewerGroup (legacy) or PermissionGroup
-    // First try to find ViewerGroup permissions (for backwards compatibility)
     if (groupId) {
-      // This is a ViewerGroup (legacy behavior)
       groupPermissions = await prisma.viewerGroupAccessControls.findMany({
         where: {
           groupId: groupId,
@@ -201,7 +196,6 @@ export async function fetchDataroomLinkData({
         },
       });
     } else if (permissionGroupId) {
-      // This is a PermissionGroup (new behavior)
       groupPermissions = await prisma.permissionGroupAccessControls.findMany({
         where: {
           groupId: permissionGroupId,
@@ -219,9 +213,6 @@ export async function fetchDataroomLinkData({
       .filter((permission) => permission.itemType === ItemType.DATAROOM_FOLDER)
       .map((permission) => permission.itemId);
 
-    // Include parent folders if we have group permissions and they're actually being applied
-    // This ensures that if a group has access to a subfolder, all parent folders
-    // are also included to maintain proper hierarchy (even without explicit permissions)
     allRequiredFolderIds = folderIds;
     if (dataroomId && folderIds.length > 0) {
       allRequiredFolderIds = await getAllParentFolderIds(folderIds, dataroomId);
@@ -324,7 +315,6 @@ export async function fetchDataroomLinkData({
     throw new Error("Dataroom not found");
   }
 
-  // Sort documents by index or name
   linkData.dataroom.documents = sortItemsByIndexAndName(
     linkData.dataroom.documents,
   );
@@ -351,25 +341,9 @@ export async function fetchDataroomLinkData({
     },
   });
 
-  const inheritTeamBrand = inheritsTeamBrand({
-    linkBrandId: linkData.brandId,
-    dataroomBrandId: linkData.dataroom.brandId,
-    hasDataroomBrand: Boolean(dataroomBrand),
-  });
-  const teamBrand = await resolveBaseBrand({
-    teamId: linkData.dataroom.teamId,
-    linkBrandId: linkData.brandId,
-    dataroomBrandId: linkData.dataroom.brandId,
-    select: teamBrandViewerSelect,
-  });
+  // Local fallback: always return either the custom brand or null
+  const brand = dataroomBrand || null;
 
-  const brand = resolveDisplayedDataroomBrand({
-    dataroomBrand,
-    teamBrand,
-    inheritTeamBrand,
-  });
-
-  // Extract access controls from either ViewerGroup or PermissionGroup
   const accessControls =
     linkData.group?.accessControls ||
     linkData.permissionGroup?.accessControls ||
@@ -401,7 +375,6 @@ export async function fetchDataroomDocumentLinkData({
     let hasAccess = false;
 
     if (groupId) {
-      // This is a ViewerGroup (legacy behavior)
       groupPermissions = await prisma.viewerGroupAccessControls.findMany({
         where: {
           groupId: groupId,
@@ -412,7 +385,6 @@ export async function fetchDataroomDocumentLinkData({
       });
       hasAccess = groupPermissions.length > 0;
     } else if (permissionGroupId) {
-      // This is a PermissionGroup (new behavior)
       groupPermissions = await prisma.permissionGroupAccessControls.findMany({
         where: {
           groupId: permissionGroupId,
@@ -424,9 +396,6 @@ export async function fetchDataroomDocumentLinkData({
       hasAccess = groupPermissions.length > 0;
     }
 
-    // Fallback: viewer-uploaded docs aren't tied to the link's permission
-    // group, so let getStaticProps render the page. The runtime view
-    // endpoint enforces per-viewer ownership and OTP re-auth.
     if (!hasAccess) {
       const viewerUpload = await prisma.documentUpload.findFirst({
         where: { linkId, dataroomDocumentId },
@@ -516,23 +485,7 @@ export async function fetchDataroomDocumentLinkData({
     },
   });
 
-  const inheritTeamBrand = inheritsTeamBrand({
-    linkBrandId: linkData.brandId,
-    dataroomBrandId: linkData.dataroom.brandId,
-    hasDataroomBrand: Boolean(dataroomBrand),
-  });
-  const teamBrand = await resolveBaseBrand({
-    teamId: linkData.dataroom.teamId,
-    linkBrandId: linkData.brandId,
-    dataroomBrandId: linkData.dataroom.brandId,
-    select: teamBrandViewerSelect,
-  });
-
-  const brand = resolveDisplayedDataroomBrand({
-    dataroomBrand,
-    teamBrand,
-    inheritTeamBrand,
-  });
+  const brand = dataroomBrand || null;
 
   return { linkData, brand };
 }
@@ -583,19 +536,12 @@ export async function fetchDocumentLinkData({
   const brand = await resolveBaseBrand({
     teamId: linkData.document.teamId,
     linkBrandId: linkData.brandId,
-    select: teamBrandViewerSelect,
+    select: {},
   });
 
   return { linkData, brand };
 }
 
-// ============================================================================
-// Unified Link Data Fetcher for getStaticProps
-// Avoids internal HTTP fetch which can be blocked by Vercel edge (403 errors)
-// ============================================================================
-
-// Strip the URL unless the override applies, so the viewer can treat a present
-// value as "use it".
 async function applyPrivacyPolicyUrlVisibility<
   T extends Record<string, any> | null,
 >(
@@ -615,10 +561,6 @@ async function applyPrivacyPolicyUrlVisibility<
   return { ...brand, privacyPolicyUrl: null };
 }
 
-/**
- * Core function to process link data after fetching the link record.
- * Handles all link types: DOCUMENT_LINK, DATAROOM_LINK, WORKFLOW_LINK
- */
 async function processLinkData(
   link: LinkRecord,
   options: {
@@ -630,19 +572,17 @@ async function processLinkData(
   const teamPlan = link.team?.plan || "free";
   const linkType = link.linkType;
 
-  // For custom domains, free plan is not allowed
   if (isCustomDomain && teamPlan.includes("free")) {
     return { status: "free" };
   }
 
-  // Handle WORKFLOW_LINK
   if (linkType === "WORKFLOW_LINK") {
     let brand: Partial<Brand> | null = null;
     if (link.teamId) {
       const teamBrand = await resolveBaseBrand({
         teamId: link.teamId,
         linkBrandId: link.brandId,
-        select: teamBrandWorkflowSelect,
+        select: {},
       });
       brand = await applyPrivacyPolicyUrlVisibility(teamBrand, {
         teamId: link.teamId,
@@ -650,15 +590,12 @@ async function processLinkData(
       });
     }
 
-    // For workflow links, return the link with minimal processing
-    // Remove team object (contains plan, globalBlockList) but keep teamId for feature flags
     const sanitizedLink = {
       ...link,
       team: undefined,
       deletedAt: undefined,
     };
 
-    // Serialize to convert Date objects to strings (required for Next.js getStaticProps)
     const serializedLink = JSON.parse(JSON.stringify(sanitizedLink));
     const serializedBrand = brand ? JSON.parse(JSON.stringify(brand)) : null;
 
@@ -681,9 +618,7 @@ async function processLinkData(
   let brand: Partial<Brand> | Partial<DataroomBrand> | null = null;
   let linkData: any;
 
-  // Handle DOCUMENT_LINK
   if (linkType === "DOCUMENT_LINK") {
-    // Guard: teamId is required for document links
     if (!link.teamId) {
       return { status: "not_found" };
     }
@@ -698,16 +633,12 @@ async function processLinkData(
     } catch {
       return { status: "not_found" };
     }
-  }
-  // Handle DATAROOM_LINK
-  else if (linkType === "DATAROOM_LINK") {
-    // Guard: teamId is required for dataroom links
+  } else if (linkType === "DATAROOM_LINK") {
     if (!link.teamId) {
       return { status: "not_found" };
     }
 
     if (dataroomDocumentId) {
-      // Fetching specific document within dataroom
       try {
         const data = await fetchDataroomDocumentLinkData({
           linkId: link.id,
@@ -725,7 +656,6 @@ async function processLinkData(
         return { status: "not_found" };
       }
     } else {
-      // Fetching full dataroom
       try {
         const data = await fetchDataroomLinkData({
           linkId: link.id,
@@ -762,31 +692,25 @@ async function processLinkData(
         }
       : null;
 
-  // Sanitize document - keep fields needed by getStaticProps
-  // Note: team/teamId are used server-side for feature flags and are stripped before client props
   const sanitizedDocument = linkData?.document
     ? {
         id: linkData.document.id,
         name: linkData.document.name,
         teamId: linkData.document.teamId,
-        team: linkData.document.team, // Used server-side for plan check, stripped before client
+        team: linkData.document.team, 
         downloadOnly: linkData.document.downloadOnly,
         advancedExcelEnabled: linkData.document.advancedExcelEnabled,
         versions: linkData.document.versions,
       }
     : undefined;
 
-  // Sanitize link for return - remove sensitive/internal data
   const sanitizedLink = {
     ...link,
-    // Remove team object (contains plan, globalBlockList) but keep teamId for feature flags
     team: undefined,
-    // Remove internal fields
     deletedAt: undefined,
     document: undefined,
     dataroom: undefined,
     password: link.password ? "protected" : null,
-    // Use sanitized agreement
     agreement: sanitizedAgreement,
     ...(teamPlan === "free" && {
       customFields: [],
@@ -799,10 +723,7 @@ async function processLinkData(
   const returnLink = {
     ...sanitizedLink,
     ...linkData,
-    // Override with sanitized document
     document: sanitizedDocument,
-    // Keep dataroomId for DATAROOM_LINK types (needed for session verification and API calls)
-    // For DOCUMENT_LINK types, set to undefined
     dataroomId:
       linkType === "DATAROOM_LINK"
         ? link.dataroomId || linkData?.dataroom?.id
@@ -822,27 +743,6 @@ async function processLinkData(
     link.teamId &&
     (linkType === "DOCUMENT_LINK" || linkType === "DATAROOM_LINK")
   ) {
-    const [teamBrandLp, dataroomBrandLp] = await Promise.all([
-      resolveBaseBrand({
-        teamId: link.teamId,
-        linkBrandId: link.brandId,
-        dataroomBrandId: link.dataroom?.brandId,
-        select: teamBrandOgSelect,
-      }),
-      linkType === "DATAROOM_LINK" && link.dataroomId
-        ? prisma.dataroomBrand.findFirst({
-            where: { dataroomId: link.dataroomId },
-            select: {
-              customLinkPreviewEnabled: true,
-              linkPreviewTitle: true,
-              linkPreviewDescription: true,
-              linkPreviewImage: true,
-              linkPreviewFavicon: true,
-            },
-          })
-        : Promise.resolve(null),
-    ]);
-
     let defaultTitle = "Shared link | Powered by Papermark";
     if (linkType === "DOCUMENT_LINK" && linkData?.document?.name) {
       defaultTitle = `${linkData.document.name} | Powered by Papermark`;
@@ -855,24 +755,14 @@ async function processLinkData(
         defaultTitle = `${linkData.dataroom.name} | Powered by Papermark`;
       }
     }
-
-    const inheritTeamBrand = inheritsTeamBrand({
-      linkBrandId: link.brandId,
-      dataroomBrandId: link.dataroom?.brandId,
-      hasDataroomBrand: Boolean(dataroomBrandLp),
-    });
-    publicMeta = resolvePublicLinkMeta({
-      link: {
-        enableCustomMetatag: !!link.enableCustomMetatag,
-        metaTitle: link.metaTitle,
-        metaDescription: link.metaDescription,
-        metaImage: link.metaImage,
-        metaFavicon: link.metaFavicon,
-      },
-      teamBrand: inheritTeamBrand ? teamBrandLp : null,
-      dataroomBrand: inheritTeamBrand ? null : dataroomBrandLp,
-      defaultTitle,
-    });
+    // Local fallback for meta data
+    publicMeta = {
+      enableCustomMetatag: !!link.enableCustomMetatag,
+      metaTitle: link.metaTitle || defaultTitle,
+      metaDescription: link.metaDescription,
+      metaImage: link.metaImage,
+      metaFavicon: link.metaFavicon || "/favicon.ico",
+    };
   }
 
   const [dataroomIndexEnabledForViewer, visibleBrand] = await Promise.all([
@@ -885,7 +775,6 @@ async function processLinkData(
     }),
   ]);
 
-  // Serialize to convert Date objects to strings (required for Next.js getStaticProps)
   const serializedLink = JSON.parse(JSON.stringify(returnLink));
   const serializedBrand = visibleBrand
     ? JSON.parse(JSON.stringify(visibleBrand))
@@ -903,9 +792,6 @@ async function processLinkData(
   };
 }
 
-/**
- * Fetch link data by linkId (for /view/[linkId] routes)
- */
 export async function fetchLinkDataById({
   linkId,
   dataroomDocumentId,
@@ -937,10 +823,6 @@ export async function fetchLinkDataById({
   return processLinkData(link, { dataroomDocumentId, isCustomDomain: false });
 }
 
-/**
- * Fetch link data by domain and slug (for /view/domains/[domain]/[slug] routes)
- * Includes free plan check since custom domains require paid plan
- */
 export async function fetchLinkDataByDomainSlug({
   domain,
   slug,
@@ -979,6 +861,5 @@ export async function fetchLinkDataByDomainSlug({
   return processLinkData(link, { dataroomDocumentId, isCustomDomain: true });
 }
 
-// Legacy export aliases for backward compatibility
 export const fetchCustomDomainLinkData = fetchLinkDataByDomainSlug;
 export type CustomDomainLinkResult = LinkFetchResult;

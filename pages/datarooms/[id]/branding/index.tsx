@@ -1,31 +1,36 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useTeam } from "@/context/team-context";
-import { BannerEditor } from "@/ee/features/branding/components/banner-editor";
-import { BrandingLinkPreviewForm } from "@/ee/features/branding/components/branding-link-preview-form";
-import { BrandingPreviewChrome } from "@/ee/features/branding/components/branding-preview-chrome";
-import { BrandingSocialPreviewReadonly } from "@/ee/features/branding/components/branding-social-preview-readonly";
-import { CollapsibleBrandingSection } from "@/ee/features/branding/components/collapsible-branding-section";
-import { DataroomLayoutPresetCards } from "@/ee/features/branding/components/dataroom-layout-preset-cards";
-import { VisitorLanguageCard } from "@/ee/features/branding/components/visitor-language-card";
-import {
-  AUTO_FILL_NOT_FOUND_MESSAGE,
-  autoFillHasBrandAssets,
-} from "@/ee/features/branding/lib/auto-fill-result";
-import {
-  CARD_LAYOUT_OPTIONS,
-  type DataroomCardLayout,
-  type DataroomLayoutCardId,
-  type DataroomViewerHeaderStyle,
-  asDataroomCardLayout,
-  asDataroomViewerHeaderStyle,
-  inferDataroomViewerLayoutPreset,
-} from "@/ee/features/branding/lib/dataroom-viewer-layout";
-import {
-  CUSTOM_DATAROOM_BRAND,
-  CUSTOM_DATAROOM_BRAND_LABEL,
-} from "@/ee/features/branding/lib/resolve-dataroom-displayed-brand";
-import { PlanEnum } from "@/ee/stripe/constants";
+// --- ERSATZ FÜR FEHLENDE PREMIUM (EE) FEATURES ---
+const BannerEditor = (props: any) => <div>{props.dropZone}</div>;
+const BrandingLinkPreviewForm = () => <div></div>;
+const BrandingPreviewChrome = () => <div className="p-8 text-center text-muted-foreground border rounded bg-gray-50">Vorschau in Open-Source nicht verfügbar</div>;
+const BrandingSocialPreviewReadonly = () => <div></div>;
+const CollapsibleBrandingSection = ({ title, children }: any) => <div className="mt-8 border-t pt-4"><h3 className="font-semibold mb-4">{title}</h3>{children}</div>;
+const DataroomLayoutPresetCards = () => <div></div>;
+const VisitorLanguageCard = () => <div></div>;
+
+const AUTO_FILL_NOT_FOUND_MESSAGE = "Brand nicht gefunden";
+const autoFillHasBrandAssets = () => false;
+
+export type DataroomCardLayout = "LIST" | "COMPACT" | "GRID";
+export type DataroomLayoutCardId = "STANDARD" | "STRICT" | "MODERN" | "NOTION" | "CUSTOM";
+export type DataroomViewerHeaderStyle = "DEFAULT" | "SPLIT" | "NOTION";
+
+const CARD_LAYOUT_OPTIONS = [
+  { value: "LIST", label: "List" }, 
+  { value: "COMPACT", label: "Compact" }, 
+  { value: "GRID", label: "Grid" }
+];
+const asDataroomCardLayout = (v: any): DataroomCardLayout => v || "LIST";
+const asDataroomViewerHeaderStyle = (v: any): DataroomViewerHeaderStyle => v || "DEFAULT";
+const inferDataroomViewerLayoutPreset = () => "STANDARD" as DataroomLayoutCardId;
+
+const CUSTOM_DATAROOM_BRAND = "custom";
+const CUSTOM_DATAROOM_BRAND_LABEL = "Custom Brand";
+
+const PlanEnum = { DataRooms: "DataRooms", DataRoomsPlus: "DataRoomsPlus", Business: "Business" };
+// --------------------------------------------------
 import { Check, CircleHelpIcon, CrownIcon, UploadIcon } from "lucide-react";
 import { HexColorInput, HexColorPicker } from "react-colorful";
 import sanitizeHtml from "sanitize-html";

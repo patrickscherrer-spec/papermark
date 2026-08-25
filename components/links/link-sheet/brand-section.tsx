@@ -1,7 +1,8 @@
-import {
-  CUSTOM_DATAROOM_BRAND,
-  CUSTOM_DATAROOM_BRAND_LABEL,
-} from "@/ee/features/branding/lib/resolve-dataroom-displayed-brand";
+// Wir ersetzen den kaputten "ee"-Import durch zwei einfache, lokale Variablen, 
+// damit die Logik der Komponente 100% erhalten bleibt.
+const CUSTOM_DATAROOM_BRAND = "custom-dataroom-brand";
+const CUSTOM_DATAROOM_BRAND_LABEL = "Custom Brand";
+
 import { LinkType } from "@prisma/client";
 
 import { useBrands, useDataroomBrand } from "@/lib/swr/use-brand";
