@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/router";
-
 import { useEffect, useState } from "react";
 
-import { useRequestListFeatureEnabled } from "@/ee/features/request-lists/lib/use-request-list-feature";
-import { PlanEnum } from "@/ee/stripe/constants";
+// --- ERSATZ FÜR FEHLENDE PREMIUM (EE) FEATURES ---
+const useRequestListFeatureEnabled = () => false;
+const PlanEnum = { DataRooms: "DataRooms", DataRoomsPlus: "DataRoomsPlus", Business: "Business", Pro: "Pro" };
+// --------------------------------------------------
+
 import {
   BarChart3Icon,
   BrushIcon,

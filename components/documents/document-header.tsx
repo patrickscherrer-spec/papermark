@@ -1,12 +1,15 @@
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/router";
-
 import { useEffect, useRef, useState } from "react";
-
 import { useTeam } from "@/context/team-context";
-import { DocumentAIDialog } from "@/ee/features/ai/components/document-ai-dialog";
-import { PlanEnum } from "@/ee/stripe/constants";
+
+// --- ERSATZ FÜR FEHLENDE PREMIUM (EE) FEATURES ---
+const DocumentAIDialog = () => <div></div>;
+const RedactionJobsDialog = () => <div></div>;
+const RedactionConfigDialog = () => <div></div>;
+const PlanEnum = { DataRooms: "DataRooms", DataRoomsPlus: "DataRoomsPlus", Business: "Business", Pro: "Pro" };
+// --------------------------------------------------
+
 import { Document, DocumentVersion } from "@prisma/client";
 import {
   ArchiveXIcon,
@@ -71,23 +74,6 @@ import { Input } from "@/components/ui/input";
 import PlanBadge from "../billing/plan-badge";
 import { UpgradePlanModal } from "../billing/upgrade-plan-modal";
 
-// Redaction dialogs are only opened on demand from the 3-dot menu. Dynamic
-// imports keep their (lucide + radix + feature code) off the document-page
-// initial bundle.
-const RedactionJobsDialog = dynamic(
-  () =>
-    import("@/ee/features/redaction/components/redaction-jobs-dialog").then(
-      (mod) => ({ default: mod.RedactionJobsDialog }),
-    ),
-  { ssr: false },
-);
-const RedactionConfigDialog = dynamic(
-  () =>
-    import("@/ee/features/redaction/components/redaction-config-dialog").then(
-      (mod) => ({ default: mod.RedactionConfigDialog }),
-    ),
-  { ssr: false },
-);
 import AdvancedSheet from "../shared/icons/advanced-sheet";
 import PortraitLandscape from "../shared/icons/portrait-landscape";
 import LoadingSpinner from "../ui/loading-spinner";
@@ -112,11 +98,6 @@ export default function DocumentHeader({
   teamId: string;
   actions?: React.ReactNode[];
   onBulkImportLinks?: () => void;
-  /**
-   * When the header is rendered inside a data room (the dataroom document
-   * page), these identify the DataroomDocument so dataroom members can remove
-   * it from the room instead of deleting the underlying document.
-   */
   dataroomId?: string;
   dataroomDocumentId?: string;
 }) {
@@ -124,8 +105,6 @@ export default function DocumentHeader({
   const teamInfo = useTeam();
   const { datarooms } = useDataroomsSimple();
   const { isDataroomMember } = useSelfMembership();
-  // Data room members may only remove a document from the room, never delete
-  // the underlying document. Requires the dataroom context to be provided.
   const canRemoveFromDataroom = Boolean(dataroomId && dataroomDocumentId);
   const showRemoveFromDataroom = isDataroomMember && canRemoveFromDataroom;
   const { theme, systemTheme } = useTheme();
@@ -134,7 +113,9 @@ export default function DocumentHeader({
   const { isPro, isFree, isTrial, isBusiness, isDatarooms } = usePlan();
   const { canUseAI, isAIEnabled } = useTeamAI();
   const { isFeatureEnabled } = useFeatureFlags();
-  const isRedactionEnabled = isFeatureEnabled("redaction");
+  // KI & Redaction hier auf false setzen, da das in der Free-Version sowieso nicht klappt.
+  const isRedactionEnabled = false; 
+
   const [isEditingName, setIsEditingName] = useState<boolean>(false);
   const [nameDraft, setNameDraft] = useState<string>("");
   const [menuOpen, setMenuOpen] = useState<boolean>(false);
@@ -148,7 +129,7 @@ export default function DocumentHeader({
   const [redactionConfigOpen, setRedactionConfigOpen] = useState<boolean>(false);
   const [planModalOpen, setPlanModalOpen] = useState<boolean>(false);
   const [planModalTrigger, setPlanModalTrigger] = useState<string>("");
-  const [selectedPlan, setSelectedPlan] = useState<PlanEnum>(PlanEnum.Pro);
+  const [selectedPlan, setSelectedPlan] = useState<any>(PlanEnum.Pro);
   const [exportModalOpen, setExportModalOpen] = useState<boolean>(false);
   const [aiDialogOpen, setAiDialogOpen] = useState<boolean>(false);
   const skipNameSubmitRef = useRef<boolean>(false);
@@ -163,10 +144,9 @@ export default function DocumentHeader({
     }
   }
 
-  // Check if document is in any datarooms
   const dataroomCount = prismaDocument.datarooms?.length || 0;
 
-  const handleUpgradeClick = (plan: PlanEnum, trigger: string) => {
+  const handleUpgradeClick = (plan: any, trigger: string) => {
     setSelectedPlan(plan);
     setPlanModalTrigger(trigger);
     setPlanModalOpen(true);
@@ -179,20 +159,6 @@ export default function DocumentHeader({
     }
   };
 
-  const currentTime = new Date();
-  const formattedTime =
-    currentTime.getFullYear() +
-    "-" +
-    String(currentTime.getMonth() + 1).padStart(2, "0") +
-    "-" +
-    String(currentTime.getDate()).padStart(2, "0") +
-    "_" +
-    String(currentTime.getHours()).padStart(2, "0") +
-    "-" +
-    String(currentTime.getMinutes()).padStart(2, "0");
-  "-" + String(currentTime.getSeconds()).padStart(2, "0");
-
-  // https://github.com/radix-ui/primitives/issues/1241#issuecomment-1888232392
   useEffect(() => {
     if (!addDataRoomOpen || !addDocumentVersion) {
       setTimeout(() => {
@@ -302,9 +268,7 @@ export default function DocumentHeader({
         try {
           const data = (await response.json()) as { message?: string };
           if (data.message) message = data.message;
-        } catch {
-          // keep fallback success message
-        }
+        } catch {}
         toast.success(message);
         refreshDocumentNameCaches(newName);
       } else {
@@ -346,75 +310,8 @@ export default function DocumentHeader({
 
   const [enablingAI, setEnablingAI] = useState<boolean>(false);
 
-  // Enable AI agents and automatically index the document
   const enableAIAgents = async () => {
-    if (!canUseAI) {
-      toast.error(
-        "AI agents are not available. Please enable them in team settings first.",
-      );
-      return;
-    }
-
-    setEnablingAI(true);
-
-    try {
-      // Step 1: Enable AI agents on the document
-      const enableResponse = await fetch(
-        `/api/teams/${teamId}/documents/${prismaDocument.id}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ agentsEnabled: true }),
-        },
-      );
-
-      if (!enableResponse.ok) {
-        throw new Error("Failed to enable AI agents");
-      }
-
-      // Step 2: Index the document automatically
-      const indexResponse = await fetch(
-        `/api/ai/store/teams/${teamId}/documents/${prismaDocument.id}`,
-        {
-          method: "POST",
-        },
-      );
-
-      if (!indexResponse.ok) {
-        // If indexing fails, still keep AI enabled but show warning
-        let errorMessage =
-          "AI enabled, but document indexing failed. You can re-index from settings.";
-        try {
-          const error = await indexResponse.json();
-          if (error.error) {
-            errorMessage = error.error;
-          }
-        } catch {
-          // JSON parsing failed, try to get raw text
-          try {
-            const text = await indexResponse.text();
-            if (text) {
-              errorMessage = text;
-            }
-          } catch {
-            // Ignore text parsing errors, use default message
-          }
-        }
-        toast.warning(errorMessage);
-      } else {
-        toast.success("AI agents enabled and document indexed successfully");
-      }
-
-      // Refresh document data
-      mutate(`/api/teams/${teamId}/documents/${prismaDocument.id}`);
-    } catch (error) {
-      console.error("Error enabling AI agents:", error);
-      toast.error("Failed to enable AI agents. Please try again.");
-    } finally {
-      setEnablingAI(false);
-    }
+    toast.error("AI agents sind in dieser Version nicht verfügbar.");
   };
 
   const changeDocumentOrientation = async () => {
@@ -441,7 +338,6 @@ export default function DocumentHeader({
       if (response.ok) {
         const { message } = await response.json();
         toast.success(message);
-
         mutate(`/api/teams/${teamId}/documents/${prismaDocument.id}`);
       } else {
         const { message } = await response.json();
@@ -487,7 +383,6 @@ export default function DocumentHeader({
     );
   };
 
-  // export method to fetch the visits data and convert to csv.
   const exportVisitCounts = (document: Document) => {
     if (isFree) {
       toast.error("This feature is not available for your plan");
@@ -496,7 +391,6 @@ export default function DocumentHeader({
     setExportModalOpen(true);
   };
 
-  // Make a document download only or viewable
   const toggleDownloadOnly = async () => {
     toast.promise(
       fetch(
@@ -523,7 +417,6 @@ export default function DocumentHeader({
     );
   };
 
-  // Toggle dark mode for Notion documents
   const toggleNotionDarkMode = async (darkMode: boolean) => {
     if (prismaDocument.type !== "notion") {
       toast.error("This feature is not available for your document type");
@@ -568,7 +461,6 @@ export default function DocumentHeader({
   }, []);
 
   const handleDeleteDocument = async (documentId: string) => {
-    // Prevent the first click from deleting the document
     if (!isFirstClick) {
       setIsFirstClick(true);
       return;
@@ -644,16 +536,15 @@ export default function DocumentHeader({
 
   const handleMenuStateChange = (open: boolean) => {
     if (isFirstClick) {
-      setMenuOpen(true); // Keep the dropdown open on the first click
+      setMenuOpen(true); 
       return;
     }
 
-    // If the menu is closed, reset the isFirstClick state
     if (!open) {
       setIsFirstClick(false);
-      setMenuOpen(false); // Ensure the dropdown is closed
+      setMenuOpen(false); 
     } else {
-      setMenuOpen(true); // Open the dropdown
+      setMenuOpen(true); 
     }
   };
 
@@ -664,7 +555,7 @@ export default function DocumentHeader({
     if (isFirstClick) {
       handleDeleteDocument(documentId);
       setIsFirstClick(false);
-      setMenuOpen(false); // Close the dropdown after deleting
+      setMenuOpen(false); 
     } else {
       setIsFirstClick(true);
     }
@@ -683,7 +574,6 @@ export default function DocumentHeader({
           isDownload: true,
         });
 
-        // Fetch the file from the S3 URL and create blob
         const response = await fetch(downloadUrl);
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -821,7 +711,6 @@ export default function DocumentHeader({
               </AddDocumentModal>
             )}
 
-          {/* AI Agents Button */}
           {isAIEnabled &&
             prismaDocument.type !== "notion" &&
             primaryVersion.type !== "link" &&
@@ -947,19 +836,6 @@ export default function DocumentHeader({
                 </DropdownMenuItem>
               )}
 
-              {/* Redaction jobs - beta, PDFs only */}
-              {isRedactionEnabled && primaryVersion.type === "pdf" ? (
-                <DropdownMenuItem
-                  onClick={() => {
-                    setRedactionJobsOpen(true);
-                    setMenuOpen(false);
-                  }}
-                >
-                  <ScanEyeIcon className="mr-2 h-4 w-4" />
-                  Redaction jobs
-                </DropdownMenuItem>
-              ) : null}
-
               {onBulkImportLinks && (
                 <DropdownMenuItem
                   onClick={() => {
@@ -972,7 +848,6 @@ export default function DocumentHeader({
                 </DropdownMenuItem>
               )}
 
-              {/* AI Agents - only show when team has AI enabled */}
               {isAIEnabled &&
                 prismaDocument.type !== "notion" &&
                 primaryVersion.type !== "link" &&
@@ -1053,7 +928,6 @@ export default function DocumentHeader({
 
               <DropdownMenuSeparator />
 
-              {/* Export views in CSV */}
               <DropdownMenuItem
                 onClick={() =>
                   isFree
@@ -1066,7 +940,6 @@ export default function DocumentHeader({
                 {isFree && <PlanBadge className="ml-2" plan="pro" />}
               </DropdownMenuItem>
 
-              {/* Download latest version */}
               {primaryVersion.type !== "notion" &&
                 primaryVersion.type !== "link" && (
                   <DropdownMenuItem
@@ -1080,8 +953,6 @@ export default function DocumentHeader({
               <DropdownMenuSeparator />
 
               {isDataroomMember ? (
-                // Data room members can only remove a document from the room,
-                // never delete the underlying document for the whole team.
                 showRemoveFromDataroom ? (
                   <DropdownMenuItem
                     className="text-destructive focus:bg-destructive focus:text-destructive-foreground"
@@ -1107,7 +978,6 @@ export default function DocumentHeader({
         </div>
       </div>
 
-      {/* Datarooms collapsible section */}
       {dataroomCount > 0 && (
         <div className="mb-2">
           <Collapsible className="w-full">
@@ -1276,38 +1146,6 @@ export default function DocumentHeader({
           onClose={() => setExportModalOpen(false)}
         />
       )}
-
-      {/* AI Agents Dialog */}
-      <DocumentAIDialog
-        open={aiDialogOpen}
-        onOpenChange={setAiDialogOpen}
-        documentId={prismaDocument.id}
-        teamId={teamId}
-        agentsEnabled={prismaDocument.agentsEnabled}
-        vectorStoreFileId={primaryVersion.vectorStoreFileId}
-      />
-
-      {isRedactionEnabled && primaryVersion.type === "pdf" ? (
-        <>
-          {redactionJobsOpen ? (
-            <RedactionJobsDialog
-              open={redactionJobsOpen}
-              onOpenChange={setRedactionJobsOpen}
-              documentId={prismaDocument.id}
-              documentName={prismaDocument.name}
-              onStartNew={() => setRedactionConfigOpen(true)}
-            />
-          ) : null}
-          {redactionConfigOpen ? (
-            <RedactionConfigDialog
-              open={redactionConfigOpen}
-              onOpenChange={setRedactionConfigOpen}
-              documentId={prismaDocument.id}
-              documentName={prismaDocument.name}
-            />
-          ) : null}
-        </>
-      ) : null}
     </header>
   );
 }

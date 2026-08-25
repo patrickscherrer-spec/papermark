@@ -1,6 +1,8 @@
 import useSWR from "swr";
 
-import type { Currency } from "@/ee/stripe/currency";
+// --- ERSATZ FÜR FEHLENDE PREMIUM (EE) FEATURES ---
+type Currency = "usd" | "eur";
+// --------------------------------------------------
 
 import { fetcher } from "@/lib/utils";
 

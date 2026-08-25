@@ -1,12 +1,18 @@
-import {
-  type Currency,
-  CURRENCY_LABEL,
-  CURRENCY_SYMBOL,
-} from "@/ee/stripe/currency";
+// --- ERSATZ FÜR FEHLENDE PREMIUM (EE) FEATURES ---
+export type Currency = "usd" | "eur";
+
+export const CURRENCY_LABEL = {
+  usd: "USD",
+  eur: "EUR",
+};
+
+export const CURRENCY_SYMBOL = {
+  usd: "$",
+  eur: "€",
+};
+// --------------------------------------------------
 
 import { cn } from "@/lib/utils";
-
-export type { Currency };
 
 type Period = "monthly" | "yearly";
 

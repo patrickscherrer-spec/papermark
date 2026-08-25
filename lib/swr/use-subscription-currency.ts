@@ -1,6 +1,9 @@
 import { useTeam } from "@/context/team-context";
-import type { Currency } from "@/ee/stripe/currency";
 import useSWR from "swr";
+
+// --- ERSATZ FÜR FEHLENDE PREMIUM (EE) FEATURES ---
+export type Currency = "usd" | "eur";
+// --------------------------------------------------
 
 import { fetcher } from "@/lib/utils";
 

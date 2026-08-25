@@ -1,7 +1,10 @@
 import { useState } from "react";
 
-import ConfidentialViewSection from "@/ee/features/permissions/components/confidential-view/confidential-view-section";
-import { PlanEnum } from "@/ee/stripe/constants";
+// --- ERSATZ FÜR FEHLENDE PREMIUM (EE) FEATURES ---
+const ConfidentialViewSection = (props: any) => null;
+const PlanEnum = { DataRooms: "DataRooms", DataRoomsPlus: "DataRoomsPlus", Business: "Business", Pro: "Pro" };
+// --------------------------------------------------
+
 import { LinkAudienceType, LinkType } from "@prisma/client";
 import { LinkPreset } from "@prisma/client";
 import { ChevronDown } from "lucide-react";
@@ -105,20 +108,7 @@ export const LinkOptions = ({
   editLink?: boolean;
   currentPreset?: LinkPreset | null;
   setValidationError?: (key: string, errors: string[]) => void;
-  /**
-   * Controls whether the "Custom branding" and "Advanced controls" sections
-   * start expanded. Defaults to `true` to preserve the create-link sheet's
-   * behaviour; the full-page builder passes `false` to start them collapsed.
-   */
   defaultExpandSections?: boolean;
-  /**
-   * Opt into the data room-style layout for document links: a single
-   * "Identity verification" segmented control, a unified allow & block list,
-   * "Allow downloading" relocated under the expiration date, a flattened
-   * (non-collapsible) security controls group, and the view notification moved
-   * to the bottom of the sheet (rendered by the parent). Data room links always
-   * use this layout regardless of the flag.
-   */
   dataroomStyle?: boolean;
 }) => {
   const {
@@ -132,13 +122,8 @@ export const LinkOptions = ({
   const { limits } = useLimits();
   const { isFeatureEnabled } = useFeatureFlags();
   const isAIFeatureEnabled = isFeatureEnabled("ai");
-  // The "Advanced controls" section only renders content for data room links
-  // (upload, file indexing, conversations) or when the AI agents feature is
-  // enabled for the team. For document links without AI, it would be empty.
   const showAdvancedControls =
     linkType === LinkType.DATAROOM_LINK || isAIFeatureEnabled;
-  // Data room links always use the consolidated layout; document links opt in
-  // via the `dataroomStyle` prop (e.g. the create/edit link modal).
   const useDataroomStyleLayout =
     linkType === LinkType.DATAROOM_LINK || dataroomStyle;
   const allowAdvancedLinkControls = limits
@@ -149,7 +134,7 @@ export const LinkOptions = ({
 
   const [openUpgradeModal, setOpenUpgradeModal] = useState<boolean>(false);
   const [trigger, setTrigger] = useState<string>("");
-  const [upgradePlan, setUpgradePlan] = useState<PlanEnum>(PlanEnum.Business);
+  const [upgradePlan, setUpgradePlan] = useState<any>(PlanEnum.Business);
   const [highlightItem, setHighlightItem] = useState<string[]>([]);
 
   const handleUpgradeStateChange = ({
@@ -161,7 +146,7 @@ export const LinkOptions = ({
     setOpenUpgradeModal(state);
     setTrigger(trigger);
     if (plan) {
-      setUpgradePlan(plan as PlanEnum);
+      setUpgradePlan(plan);
     }
     setHighlightItem(highlightItem || []);
   };
@@ -170,8 +155,6 @@ export const LinkOptions = ({
     <div>
       <PasswordSection {...{ data, setData }} />
       <ExpirationSection {...{ data, setData }} presets={currentPreset} />
-      {/* In the consolidated layout, "Allow downloading" sits directly under
-          the expiration date. */}
       {useDataroomStyleLayout && (
         <AllowDownloadSection {...{ data, setData }} />
       )}
@@ -211,17 +194,10 @@ export const LinkOptions = ({
 
   return (
     <div>
-      {/* Basic Options - Always visible */}
-      {/* In the consolidated layout the owner-facing view notification is moved
-          to the bottom of the sheet (rendered by the parent) so the list leads
-          with viewer-facing access controls. */}
       {!useDataroomStyleLayout && (
         <AllowNotificationSection {...{ data, setData }} />
       )}
       {useDataroomStyleLayout ? (
-        // Combine "require email" + "require verification" into a single
-        // segmented control to make the relationship between the two levels
-        // clear and save vertical space.
         <EmailAccessSection
           {...{ data, setData }}
           isAllowed={
@@ -249,16 +225,12 @@ export const LinkOptions = ({
           />
         </>
       )}
-      {/* In the consolidated layout "Allow downloading" is relocated under the
-          expiration date within the (flattened) security controls below. */}
       {!useDataroomStyleLayout && (
         <AllowDownloadSection {...{ data, setData }} />
       )}
 
       {data.audienceType === LinkAudienceType.GENERAL ? (
         useDataroomStyleLayout ? (
-          // Combine the allow + block lists under a single toggle (both lists
-          // remain configurable).
           <AllowBlockListSection
             key={`allow-block-${data.id ?? "new"}`}
             {...{ data, setData }}
@@ -307,9 +279,6 @@ export const LinkOptions = ({
         )
       ) : null}
 
-      {/* Security Section. In the consolidated layout the security controls are
-          merged into the main list (no collapsible subgroup/separator); the
-          standalone layout keeps the collapsible group. */}
       {useDataroomStyleLayout ? (
         securityControls
       ) : (
@@ -318,7 +287,6 @@ export const LinkOptions = ({
         </CollapsibleSection>
       )}
 
-      {/* Custom Branding Section */}
       <CollapsibleSection
         title="Custom branding"
         defaultOpen={defaultExpandSections}
@@ -376,14 +344,12 @@ export const LinkOptions = ({
         </div>
       </CollapsibleSection>
 
-      {/* Advanced Section */}
       {showAdvancedControls && (
         <CollapsibleSection
           title="Advanced controls"
           defaultOpen={defaultExpandSections}
         >
           <div>
-            {/* AI Agents - Available for both document and dataroom links */}
             <AIAgentsSection
               {...{ data, setData }}
               isAllowed={
@@ -392,7 +358,6 @@ export const LinkOptions = ({
               handleUpgradeStateChange={handleUpgradeStateChange}
             />
 
-            {/* Dataroom-specific options */}
             {linkType === LinkType.DATAROOM_LINK ? (
               <>
                 {targetId ? (
