@@ -1,12 +1,6 @@
-"use client";
+import React from "react";
 
-import {
-  DataroomLinkSheet as DataroomLinkSheetEE,
-  type ItemPermission as ItemPermissionEE,
-} from "@/ee/features/permissions/components/dataroom-link-sheet";
-
-export type ItemPermission = ItemPermissionEE;
-
-export function DataroomLinkSheet(props: any) {
-  return <DataroomLinkSheetEE {...props} />;
+export function DataroomLinkSheet({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (open: boolean) => void }) {
+  if (!isOpen) return null;
+  return null;
 }
